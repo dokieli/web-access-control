@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Test artifacts
+coverage/
+
+# Yarn (Berry) caches/state; yarn.lock & .yarnrc.yml stay tracked
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+install-state.gz
+
+# Editor
+*.code-workspace
+
+# Logs / OS
+*.log
+.DS_Store

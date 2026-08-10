@@ -1,0 +1,48 @@
+name: release-please
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  # Publishes to npm only when the merged release PR actually cut a release.
+  # Tokenless via npm trusted publishing (OIDC) — no NPM_TOKEN secret; provenance is automatic.
+  publish:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # required for the OIDC token exchange with npm
+    steps:
+      - uses: actions/checkout@v4
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      # `prepare` builds dist/ on install (and again before npm publish).
+      - run: yarn install --immutable
+      # OIDC trusted publishing needs npm >= 11.5.1; Node 24's bundled npm already satisfies this.
+      # Do NOT `npm install -g npm@latest` — the in-place self-upgrade prunes `sigstore` from the
+      # tree, breaking provenance generation with "Cannot find module 'sigstore'".
+      - run: npm publish

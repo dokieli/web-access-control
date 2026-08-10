@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>@dokieli/web-access-control - example</title>
+    <script type="importmap">
+      {
+        "imports": {
+          "@dokieli/web-access-control": "/dist/index.js",
+          "@rdfjs/data-model": "/node_modules/@rdfjs/data-model/index.js",
+          "n3": "/node_modules/n3/browser/n3.esm.min.js"
+        }
+      }
+    </script>
+    <style>
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  font-family: system-ui, sans-serif;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem 1rem 4rem;
+  color: #111;
+  line-height: 1.6;
+}
+h1 { font-size: 1.4rem; margin-bottom: 0.25rem; }
+h2 { font-size: 1.05rem; margin: 2rem 0 0.5rem; }
+.subtitle { color: #555; margin-top: 0; font-size: 0.95rem; }
+.hint {
+  font-size: 0.85rem; color: #555; border-left: 3px solid #ccc;
+  padding-left: 0.75rem; margin: 1rem 0 1.5rem;
+}
+code { font-size: 0.9em; }
+
+label { font-size: 0.85rem; font-weight: 500; display: block; margin-bottom: 0.25rem; }
+select, input[type=text] {
+  padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px;
+  font-size: 0.9rem; font-family: inherit; width: 100%;
+}
+fieldset { border: none; margin: 0; padding: 0; }
+fieldset label { font-weight: normal; display: inline-block; margin: 0 0.75rem 0 0; }
+input[type=checkbox] { margin-right: 0.2rem; }
+.planner-note { font-size: 0.82rem; color: #555; align-self: end; }
+label.ignored, .ignored label, .ignored legend { color: #aaa; }
+.ignored select, .ignored input { opacity: 0.5; }
+
+fieldset.experimental { border: 1px dashed #bbb; border-radius: 6px; padding: 0.5rem 1rem 1rem; margin-top: 1.25rem; }
+fieldset.experimental legend { font-size: 0.85rem; font-weight: 600; color: #444; padding: 0 0.4rem; }
+fieldset.experimental label { display: block; font-weight: 500; margin: 0 0 0.25rem; }
+fieldset.experimental .note { font-size: 0.8rem; color: #666; margin: 0 0 0.75rem; }
+.subject { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.subject select { width: auto; flex: 0 0 auto; }
+.subject input { flex: 1 1 16rem; }
+.subject .or { font-size: 0.8rem; color: #666; }
+
+.protocol { background: #fafafa; border: 1px solid #ddd; border-radius: 6px; padding: 1rem 1.5rem 1.5rem; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem 1rem; }
+@media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+.grid .full { grid-column: 1 / -1; }
+
+button {
+  font: inherit; font-size: 0.9rem; padding: 0.45rem 1rem; cursor: pointer;
+  border: 1px solid #ccc; border-radius: 4px; background: #080; color: #fff;
+}
+button.secondary { background: #fff; color: #333; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+.actions { display: flex; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap; align-items: center; }
+
+.output { margin-top: 1rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+@media (max-width: 760px) { .output { grid-template-columns: 1fr; } }
+.output-section { border: 1px solid #ddd; border-radius: 6px; overflow: hidden; }
+.output-section header {
+  background: #f0f0f0; border-bottom: 1px solid #ddd; padding: 0.4rem 0.75rem; font-size: 0.8rem;
+  font-weight: 600; color: #444; display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;
+}
+.output-section header .status { font-weight: normal; font-family: monospace; color: #333; font-size: 0.78rem; }
+pre { margin: 0; padding: 0.75rem; font-size: 0.78rem; overflow: auto; max-height: 340px; white-space: pre-wrap; word-break: break-word; background: #fff; }
+.empty { color: #aaa; font-style: italic; }
+.error { color: #b30000; }
+
+#http-log { max-height: 180px; font-family: monospace; }
+#http-log .status-ok { color: #0a7a2f; }
+#http-log .status-bad { color: #b30000; }
+
+#authorizations { padding: 0.75rem; margin: 0; list-style: none; }
+#authorizations li:not(.empty) {
+  border: 1px solid #e2e2e2; border-left: 3px solid #008800; border-radius: 4px;
+  padding: 0.5rem 0.8rem; margin: 0.5rem 0; font-size: 0.85rem; background: #fdfdfd;
+}
+#authorizations .id { font-family: monospace; font-size: 0.78rem; word-break: break-all; display: block; }
+#authorizations dl { display: grid; grid-template-columns: max-content 1fr; gap: 0 0.75rem; margin: 0.35rem 0 0; }
+#authorizations dt { font-size: 0.78rem; color: #555; }
+#authorizations dd { margin: 0; font-size: 0.8rem; font-family: monospace; word-break: break-all; }
+    </style>
+  </head>
+  <body>
+    <h1>@dokieli/web-access-control</h1>
+    <p class="subtitle">
+      A playground for <cite><a href="https://solid.github.io/web-access-control-spec/">Web Access Control</a></cite> (WAC):
+      discover the effective ACL resource, read its authorizations, plan a change, and see the payload before it is sent.
+    </p>
+    <p class="hint">
+      Requires <code>node examples/server.js</code>, which serves this page and acts as the WAC origin:
+      local test documents advertising <code>Link rel="acl"</code> and <code>WAC-Allow</code>, ACL resources
+      held in memory, and <code>PATCH</code> over <code>application/sparql-update</code> or <code>text/n3</code>.
+      This example page relies on the built-in Turtle parser; applications that already load a parser, or that read
+      other serializations, pass their own as <code>parse</code>. New authorization identifiers are numbered rather than
+      random so the payloads below stay readable and diffable.
+    </p>
+
+    <h2>1. Discovery</h2>
+    <div class="protocol">
+      <div class="grid">
+        <div class="full">
+          <label for="f-resource">Resource</label>
+          <select id="f-resource"></select>
+        </div>
+        <div class="full" id="resource-note" style="font-size:0.85rem;color:#555"></div>
+      </div>
+      <div class="actions">
+        <button type="button" id="btn-discover">findEffectiveACL</button>
+        <button type="button" class="secondary" id="btn-wac-allow">HEAD and parseWacAllow</button>
+        <button type="button" class="secondary" id="btn-reset">Reset demo ACLs</button>
+      </div>
+    </div>
+
+    <div class="output">
+      <div class="output-section">
+        <header>ACLContext <span class="status" id="status-context">-</span></header>
+        <pre id="output-context"><span class="empty">Run findEffectiveACL</span></pre>
+      </div>
+      <div class="output-section">
+        <header>Queries <span class="status" id="status-queries">-</span></header>
+        <pre id="output-queries"><span class="empty">Run findEffectiveACL</span></pre>
+      </div>
+    </div>
+
+    <div class="output-section" style="margin-top:1rem">
+      <header>Authorizations <span class="status" id="status-authorizations">-</span></header>
+      <ul id="authorizations"><li class="empty">Run findEffectiveACL to list the authorizations governing the resource</li></ul>
+    </div>
+
+    <h2>2. Plan a change</h2>
+    <form class="protocol" id="plan" autocomplete="off">
+      <div class="grid">
+        <div>
+          <label for="f-operation">Planner</label>
+          <select id="f-operation">
+            <option value="grant">planGrant</option>
+            <option value="revoke">planRevoke</option>
+            <option value="publicRead-on">planPublicRead (enabled)</option>
+            <option value="publicRead-off">planPublicRead (disabled)</option>
+            <option value="ownerControl">planOwnerControl</option>
+            <option value="containerACL">planContainerACL</option>
+          </select>
+        </div>
+        <div class="planner-note" id="planner-note"></div>
+        <div class="full">
+          <label for="f-subject-preset">Subject</label>
+          <div class="subject">
+            <select id="f-subject-preset"></select>
+            <span class="or">or</span>
+            <select id="f-subject-type">
+              <option value="agent">agent</option>
+              <option value="agentClass">agentClass</option>
+              <option value="agentGroup">agentGroup</option>
+            </select>
+            <input type="text" id="f-subject" list="demo-subjects" placeholder="WebID, agent class, or group IRI" />
+          </div>
+          <datalist id="demo-subjects"></datalist>
+        </div>
+        <div class="full">
+          <label>Modes</label>
+          <fieldset id="f-modes">
+            <label><input type="checkbox" value="Read" checked />Read</label>
+            <label><input type="checkbox" value="Write" />Write</label>
+            <label><input type="checkbox" value="Append" />Append</label>
+            <label><input type="checkbox" value="Control" />Control</label>
+          </fieldset>
+        </div>
+        <div class="full">
+          <label>Options</label>
+          <fieldset>
+            <label id="l-origin"><input type="checkbox" id="f-origin" />acl:origin <code id="origin-value"></code></label>
+            <label id="l-any-client"><input type="checkbox" id="f-any-client" />conditions: anyClient</label>
+          </fieldset>
+        </div>
+      </div>
+
+      <fieldset class="experimental" id="f-condition">
+        <legend>Condition (<em>experimental</em>)</legend>
+        <p class="note" id="condition-note"></p>
+        <div class="grid">
+          <div class="full">
+            <label for="f-client-preset">Client</label>
+            <div class="subject">
+              <select id="f-client-preset"></select>
+              <span class="or">or</span>
+              <select id="f-client-type">
+                <option value="">none</option>
+                <option value="client">client</option>
+                <option value="clientClass">clientClass</option>
+                <option value="clientGroup">clientGroup</option>
+              </select>
+              <input type="text" id="f-client" list="demo-clients" placeholder="client identifier, class, or group IRI" />
+            </div>
+            <datalist id="demo-clients"></datalist>
+          </div>
+          <div class="full">
+            <label for="f-issuer-preset">Issuer</label>
+            <div class="subject">
+              <select id="f-issuer-preset"></select>
+              <span class="or">or</span>
+              <select id="f-issuer-type">
+                <option value="">none</option>
+                <option value="issuer">issuer</option>
+                <option value="issuerClass">issuerClass</option>
+                <option value="issuerGroup">issuerGroup</option>
+              </select>
+              <input type="text" id="f-issuer" list="demo-issuers" placeholder="issuer, class, or group IRI" />
+            </div>
+            <datalist id="demo-issuers"></datalist>
+          </div>
+        </div>
+      </fieldset>
+
+      <div class="actions">
+        <button type="button" id="btn-apply">applyPlan</button>
+        <span class="status" id="status-negotiated"></span>
+      </div>
+    </form>
+
+    <div class="output">
+      <div class="output-section">
+        <header>PatchPlan <span class="status" id="status-plan">-</span></header>
+        <pre id="output-plan"><span class="empty">Run findEffectiveACL first</span></pre>
+      </div>
+      <div class="output-section">
+        <header>Inserted authorizations (toTurtle) <span class="status" id="status-inserts">-</span></header>
+        <pre id="output-inserts"><span class="empty">Run findEffectiveACL first</span></pre>
+      </div>
+    </div>
+
+    <div class="output">
+      <div class="output-section">
+        <header>Request body (toSparqlUpdate) <span class="status" id="status-sparql">-</span></header>
+        <pre id="output-sparql"><span class="empty">Run findEffectiveACL first</span></pre>
+      </div>
+      <div class="output-section">
+        <header>Request body (toN3Patch) <span class="status" id="status-n3">-</span></header>
+        <pre id="output-n3"><span class="empty">Run findEffectiveACL first</span></pre>
+      </div>
+    </div>
+
+    <h2>3. Result</h2>
+    <div class="output">
+      <div class="output-section">
+        <header>ACL resource on the server <span class="status" id="status-document">-</span></header>
+        <pre id="output-document"><span class="empty">Run findEffectiveACL</span></pre>
+      </div>
+      <div class="output-section">
+        <header>HTTP log <span class="status"><button type="button" class="secondary" id="btn-clear-log" style="font-size:0.72rem;padding:0.1rem 0.4rem">clear</button></span></header>
+        <pre id="http-log"><span class="empty">Requests made by the library appear here</span></pre>
+      </div>
+    </div>
+
+    <script type="module">
+import {
+  ACCESS_MODES, Authenticated, FOAF, Public,
+  agentsWithMode, allows, findEffectiveACL, hasControl, isPublic, modesFor, subjectsWithMode,
+  applyPlan, negotiatePatchContentType, parseWacAllow,
+  planContainerACL, planGrant, planOwnerControl, planPublicRead, planRevoke,
+  toN3Patch, toSparqlUpdate, toTurtle,
+  WACError,
+} from '@dokieli/web-access-control'
+
+const $ = id => document.getElementById(id)
+const logEl = $('http-log')
+
+const OWNER = 'https://giuseppina.example/#me'
+const RESOURCES = [
+  ['/docs/test.html', 'No ACL resource of its own: discovery walks up to /docs/.acl, so the context is inherited and planGrant copies the container authorizations into /docs/test.html.acl.'],
+  ['/docs/notes.html', 'Has its own ACL resource, so the planners patch it in place.'],
+  ['/docs/', 'The container itself. Its authorizations carry both acl:accessTo and acl:default.'],
+  ['/conditions/report.html', 'Its ACL resource advertises Link rel="acl:condition", so ACLContext.conditions is non-empty and planGrant attaches an acl:ClientCondition to what it writes.'],
+  ['/private/secret.html', 'Its ACL resource answers 403: discovery stops with ACLAccessDeniedError.'],
+  ['/orphan.html', 'Served without Link rel="acl": discovery throws ACLNotDeterminedError.'],
+]
+
+// Public and Authenticated are the library's own AccessSubject constants, so
+// picking one sets acl:agentClass rather than acl:agent. Any other IRI can be
+// typed into the field.
+const SUBJECTS = [
+  { label: 'Public: foaf:Agent', ...Public },
+  { label: 'Any authenticated agent: acl:AuthenticatedAgent', ...Authenticated },
+  { label: 'Giuseppina, the demo owner', type: 'agent', iri: OWNER },
+  { label: 'Liliano', type: 'agent', iri: 'https://liliano.example/#me' },
+  { label: 'Flora', type: 'agent', iri: 'https://flora.example/#me' },
+  { label: 'Editors, a group', type: 'agentGroup', iri: 'https://example.org/groups#editors' },
+]
+
+// https://solid.github.io/web-access-control-spec/#conditional-authorizations
+const CLIENTS = [
+  { label: 'No client condition', type: '', iri: '' },
+  { label: 'Any client: foaf:Agent', type: 'clientClass', iri: FOAF + 'Agent' },
+  { label: 'dokieli', type: 'client', iri: 'https://dokie.li/clientid.json' },
+  { label: 'Trusted clients, a group', type: 'clientGroup', iri: 'https://example.org/groups#clients' },
+]
+
+const ISSUERS = [
+  { label: 'No issuer condition', type: '', iri: '' },
+  { label: 'Any issuer: foaf:Agent', type: 'issuerClass', iri: FOAF + 'Agent' },
+  { label: 'solidcommunity.net', type: 'issuer', iri: 'https://solidcommunity.net/' },
+  { label: 'Trusted issuers, a group', type: 'issuerGroup', iri: 'https://example.org/groups#issuers' },
+]
+
+const CONDITION_NOTE = '2026-08-07: Please note that the conditional authorization feature in the WAC specification is work in progress. The library implements acl:ClientCondition and acl:IssuerCondition.'
+
+// Each planner reads a different part of the form. Whatever it ignores is
+// disabled, so no control looks like it should have changed the payload.
+const PLANNERS = {
+  'grant': {
+    subject: true, modes: true, origin: true, anyClient: false, conditions: true,
+    note: 'Writes exactly the modes given. No implication policy: Write does not imply Read.',
+  },
+  'revoke': {
+    subject: true, modes: false, origin: false, anyClient: false, conditions: false,
+    note: 'Removes the subject from every authorization granting it access. Throws when there is none.',
+  },
+  'publicRead-on': {
+    subject: false, modes: false, origin: false, anyClient: false, conditions: false,
+    note: 'planGrant with the library Public subject and Read.',
+  },
+  'publicRead-off': {
+    subject: false, modes: false, origin: false, anyClient: false, conditions: false,
+    note: 'planRevoke with the library Public subject.',
+  },
+  'ownerControl': {
+    subject: false, modes: false, origin: false, anyClient: false, conditions: false,
+    note: 'planGrant for the demo owner with Read, Write, Control.',
+  },
+  'containerACL': {
+    subject: true, modes: true, origin: false, anyClient: true, conditions: true,
+    note: 'A fresh container ACL, built without a context: the subject IRI is the owner, and the modes go on both the owner rule and the acl:default rule members inherit.',
+  },
+}
+
+let context = null
+let plan = null
+
+for (const [path, note] of RESOURCES) {
+  const option = document.createElement('option')
+  option.value = new URL(path, location.origin).href
+  option.textContent = path
+  option.dataset.note = note
+  $('f-resource').appendChild(option)
+}
+$('origin-value').textContent = location.origin
+
+// A preset select over a type/IRI pair: picking one fills both, editing
+// either half falls through to "Something else". Used for the subject and for
+// the two condition halves.
+function wirePicker({ presets, preset, type, input, list, selected = 0, onChange }) {
+  presets.forEach((entry, index) => {
+    const option = document.createElement('option')
+    option.value = String(index)
+    option.textContent = entry.label
+    $(preset).appendChild(option)
+
+    if (!entry.iri) return
+    const suggestion = document.createElement('option')
+    suggestion.value = entry.iri
+    suggestion.label = `${entry.label} (${entry.type})`
+    $(list).appendChild(suggestion)
+  })
+
+  const custom = document.createElement('option')
+  custom.value = 'custom'
+  custom.textContent = 'Something else'
+  $(preset).appendChild(custom)
+
+  $(preset).addEventListener('change', () => {
+    const entry = presets[Number($(preset).value)]
+    if (!entry) return
+    $(type).value = entry.type
+    $(input).value = entry.iri
+    onChange?.()
+  })
+
+  const sync = () => {
+    const index = presets.findIndex(entry => entry.type === $(type).value && entry.iri === $(input).value.trim())
+    $(preset).value = index < 0 ? 'custom' : String(index)
+    onChange?.()
+  }
+  $(input).addEventListener('input', sync)
+  $(type).addEventListener('change', sync)
+
+  $(preset).value = String(selected)
+  $(preset).dispatchEvent(new Event('change', { bubbles: true }))
+}
+
+function log(text, ok = true) {
+  logEl.querySelector('.empty')?.remove()
+  const line = document.createElement('div')
+  line.className = ok ? 'status-ok' : 'status-bad'
+  line.textContent = text
+  logEl.appendChild(line)
+  logEl.scrollTop = logEl.scrollHeight
+}
+
+function show(id, statusId, value, { error = false, status } = {}) {
+  const pre = $(id)
+  pre.classList.toggle('error', error)
+  pre.textContent = typeof value === 'string' ? value : JSON.stringify(value, null, 2)
+  if (statusId) $(statusId).textContent = status ?? '-'
+}
+
+function showError(error) {
+  const detail = error instanceof WACError
+    ? { name: error.name, message: error.message, iri: error.iri, status: error.status }
+    : { name: error?.name ?? 'Error', message: String(error) }
+  show('output-context', 'status-context', detail, { error: true, status: detail.name })
+}
+
+window.addEventListener('error', event => showError(event.error ?? event.message))
+window.addEventListener('unhandledrejection', event => showError(event.reason))
+
+// Real fetch, wrapped only to show each request the library makes.
+const trackedFetch = async (url, init) => {
+  const method = init?.method ?? 'GET'
+  try {
+    const response = await globalThis.fetch(url, init)
+    log(`${method} ${url} -> ${response.status}`, response.ok)
+    return response
+  }
+  catch (error) {
+    log(`${method} ${url} -> ${error}`, false)
+    throw error
+  }
+}
+
+// The library asks for RDF/JS-shaped quads and does not care where they come from.
+
+$('f-resource').addEventListener('change', () => {
+  $('resource-note').textContent = $('f-resource').selectedOptions[0].dataset.note
+  context = null
+  renderPlan()
+})
+$('f-resource').dispatchEvent(new Event('change'))
+
+$('btn-clear-log').addEventListener('click', () => { logEl.textContent = '' })
+
+function selectedModes() {
+  return [...$('f-modes').querySelectorAll('input:checked')].map(input => input.value)
+}
+
+function subject() {
+  return { type: $('f-subject-type').value, iri: $('f-subject').value.trim() }
+}
+
+wirePicker({
+  presets: SUBJECTS,
+  preset: 'f-subject-preset', type: 'f-subject-type', input: 'f-subject', list: 'demo-subjects',
+  selected: SUBJECTS.findIndex(preset => preset.iri === 'https://liliano.example/#me'),
+  onChange: () => { if (context) renderQueries(context) },
+})
+wirePicker({ presets: CLIENTS, preset: 'f-client-preset', type: 'f-client-type', input: 'f-client', list: 'demo-clients' })
+wirePicker({ presets: ISSUERS, preset: 'f-issuer-preset', type: 'f-issuer-type', input: 'f-issuer', list: 'demo-issuers' })
+
+// GrantOptions.conditions: leaving it out keeps whatever an authorization
+// already carries, so an empty selection is not the same as an empty array.
+function conditionSpecs() {
+  const specs = []
+  const client = $('f-client-type').value
+  const issuer = $('f-issuer-type').value
+  if (client) specs.push({ type: 'ClientCondition', property: client, iri: $('f-client').value.trim() || undefined })
+  if (issuer) specs.push({ type: 'IssuerCondition', property: issuer, iri: $('f-issuer').value.trim() || undefined })
+  return specs.length ? specs : undefined
+}
+
+// Numbered instead of random: the payload panels stay readable across edits.
+function stableIds() {
+  let counter = 0
+  return () => `authorization-${++counter}`
+}
+
+function buildPlan() {
+  if (!context) return null
+  const newId = stableIds()
+  const origin = $('f-origin').checked ? [location.origin] : []
+
+  switch ($('f-operation').value) {
+    case 'grant':
+      return planGrant(context, subject(), selectedModes(), {
+        newId,
+        origin,
+        conditions: $('f-condition').disabled ? undefined : conditionSpecs(),
+      })
+    case 'revoke':
+      return planRevoke(context, subject(), { newId })
+    case 'publicRead-on':
+      return planPublicRead(context, true, { newId })
+    case 'publicRead-off':
+      return planPublicRead(context, false, { newId })
+    case 'ownerControl':
+      return planOwnerControl(context, OWNER, { newId })
+    case 'containerACL': {
+      const containerURL = context.effectiveContainer
+        ?? (context.resource.endsWith('/') ? context.resource : context.resource.replace(/[^/]+$/, ''))
+      return planContainerACL({
+        aclURL: new URL('.acl', containerURL).href,
+        containerURL,
+        owner: subject().iri,
+        ownerModes: selectedModes(),
+        defaultModes: selectedModes(),
+        // the shorthand wins so both spellings of a client condition are
+        // reachable: 'anyClient' here, ConditionSpec[] from the fieldset
+        conditions: $('f-any-client').checked ? 'anyClient' : conditionSpecs(),
+      })
+    }
+  }
+}
+
+function applyPlannerAvailability() {
+  const planner = PLANNERS[$('f-operation').value]
+  $('planner-note').textContent = planner.note
+
+  for (const id of ['f-subject-preset', 'f-subject-type', 'f-subject']) $(id).disabled = !planner.subject
+  $('f-subject').closest('.full').classList.toggle('ignored', !planner.subject)
+
+  for (const input of $('f-modes').querySelectorAll('input')) input.disabled = !planner.modes
+  $('f-modes').closest('.full').classList.toggle('ignored', !planner.modes)
+
+  $('f-origin').disabled = !planner.origin
+  $('l-origin').classList.toggle('ignored', !planner.origin)
+  $('f-any-client').disabled = !planner.anyClient
+  $('l-any-client').classList.toggle('ignored', !planner.anyClient)
+
+  // planGrant refuses conditions unless the ACL resource advertises support
+  // (Link rel="acl:condition"): a server without it evaluates authorizations
+  // with their conditions ignored. planContainerACL bootstraps a new ACL, so
+  // there is nothing to consult and the choice is the operator's.
+  const advertised = $('f-operation').value === 'containerACL' || Boolean(context?.conditions.length)
+  const conditionsOn = planner.conditions && advertised
+  $('f-condition').disabled = !conditionsOn
+  $('f-condition').classList.toggle('ignored', !conditionsOn)
+  $('condition-note').textContent = !planner.conditions
+    ? 'This planner takes no conditions.'
+    : conditionsOn
+      ? CONDITION_NOTE
+      : 'This ACL resource does not advertise condition support (Link rel="acl:condition"), so planGrant refuses to write conditions the server would not evaluate.'
+}
+
+function renderPlan() {
+  plan = null
+  $('btn-apply').disabled = true
+  applyPlannerAvailability()
+
+  if (!context) {
+    for (const [id, statusId] of [['output-plan', 'status-plan'], ['output-inserts', 'status-inserts'], ['output-sparql', 'status-sparql'], ['output-n3', 'status-n3']]) {
+      show(id, statusId, 'Run findEffectiveACL first')
+    }
+    return
+  }
+
+  try {
+    plan = buildPlan()
+  }
+  catch (error) {
+    const message = error instanceof WACError ? `${error.name}: ${error.message}` : String(error)
+    for (const [id, statusId] of [['output-plan', 'status-plan'], ['output-inserts', 'status-inserts'], ['output-sparql', 'status-sparql'], ['output-n3', 'status-n3']]) {
+      show(id, statusId, message, { error: true, status: 'threw' })
+    }
+    return
+  }
+
+  const empty = !plan.deletes.length && !plan.inserts.length
+  $('btn-apply').disabled = empty
+
+  show('output-plan', 'status-plan', {
+    target: plan.target,
+    deletes: plan.deletes.length,
+    inserts: plan.inserts.length,
+  }, { status: empty ? 'no change' : `${plan.deletes.length} out, ${plan.inserts.length} in` })
+
+  const inserts = plan.inserts.length ? toTurtle(plan.inserts) : ''
+  const deletes = plan.deletes.length ? toTurtle(plan.deletes) : ''
+  show('output-inserts', 'status-inserts',
+    [inserts && `# inserts\n${inserts}`, deletes && `# deletes\n${deletes}`].filter(Boolean).join('\n') || 'Nothing to write',
+    { status: `${plan.inserts.length + plan.deletes.length} triples` })
+
+  const sparql = toSparqlUpdate(plan)
+  const n3 = toN3Patch(plan)
+  show('output-sparql', 'status-sparql', sparql || 'Nothing to send', { status: `${sparql.length} chars` })
+  show('output-n3', 'status-n3', n3, { status: `${n3.length} chars` })
+}
+
+$('plan').addEventListener('input', renderPlan)
+$('plan').addEventListener('change', renderPlan)
+
+function renderQueries(ctx) {
+  const modes = Object.fromEntries(ACCESS_MODES.map(mode => [mode, agentsWithMode(ctx, mode)]))
+  show('output-queries', 'status-queries', {
+    'modesFor(subject)': [...modesFor(ctx, subject())],
+    'isPublic(ctx)': isPublic(ctx),
+    'hasControl(ctx, owner)': hasControl(ctx, OWNER),
+    'modesFor(ctx, Public)': [...modesFor(ctx, Public)],
+    'modesFor(ctx, Authenticated)': [...modesFor(ctx, Authenticated)],
+    'agentsWithMode(ctx, mode)': modes,
+    'subjectsWithMode(ctx, "Read")': subjectsWithMode(ctx, 'Read'),
+  }, { status: `subject: ${subject().iri}` })
+}
+
+function renderContext(ctx) {
+  show('output-context', 'status-context', {
+    resource: ctx.resource,
+    defaultACLResource: ctx.defaultACLResource,
+    effectiveACLResource: ctx.effectiveACLResource,
+    effectiveContainer: ctx.effectiveContainer,
+    inherited: ctx.inherited,
+    conditions: ctx.conditions,
+    authorizations: ctx.authorizations.length,
+    dataset: ctx.dataset.length,
+  }, { status: ctx.inherited ? 'inherited' : 'resource ACL' })
+
+  renderQueries(ctx)
+
+  const list = $('authorizations')
+  list.textContent = ''
+  $('status-authorizations').textContent = `${ctx.authorizations.length} governing ${ctx.resource}`
+
+  if (!ctx.authorizations.length) {
+    const li = document.createElement('li')
+    li.className = 'empty'
+    li.textContent = 'No authorization in the effective ACL resource applies to this resource'
+    list.appendChild(li)
+    return
+  }
+
+  for (const authorization of ctx.authorizations) {
+    const li = document.createElement('li')
+    const id = document.createElement('strong')
+    id.className = 'id'
+    id.textContent = authorization.blankNode ? `_:${authorization.id} (blank node: planners skip it)` : authorization.id
+    li.appendChild(id)
+
+    const dl = document.createElement('dl')
+    const rows = [
+      ['mode', authorization.mode],
+      ['agent', authorization.agent],
+      ['agentClass', authorization.agentClass],
+      ['agentGroup', authorization.agentGroup],
+      ['accessTo', authorization.accessTo],
+      ['default', authorization.default],
+      ['origin', authorization.origin],
+      ['condition', authorization.condition.map(condition =>
+        `${condition.blankNode ? '_:' : ''}${condition.id} { ${Object.entries(condition.properties)
+          .map(([predicate, values]) => `${predicate.replace(/^.*[#/]/, '')}: ${values.join(', ')}`).join('; ')} }`)],
+    ]
+    for (const [term, values] of rows) {
+      if (!values.length) continue
+      const dt = document.createElement('dt')
+      dt.textContent = term
+      const dd = document.createElement('dd')
+      dd.textContent = values.join(', ')
+      dl.append(dt, dd)
+    }
+    li.appendChild(dl)
+    list.appendChild(li)
+  }
+}
+
+async function showACLDocument(url) {
+  try {
+    const response = await trackedFetch(url, { headers: { Accept: 'text/turtle' } })
+    const text = await response.text()
+    show('output-document', 'status-document', text.trim() || '(empty)', {
+      error: !response.ok,
+      status: `${response.status} ${url.replace(location.origin, '')}`,
+    })
+  }
+  catch (error) {
+    show('output-document', 'status-document', String(error), { error: true, status: 'failed' })
+  }
+}
+
+async function discover() {
+  const resource = $('f-resource').value
+  context = null
+  try {
+    context = await findEffectiveACL(resource, { fetch: trackedFetch })
+    renderContext(context)
+    await showACLDocument(context.defaultACLResource)
+    negotiatePatchContentType(context.defaultACLResource, { fetch: trackedFetch })
+      .then(contentType => { $('status-negotiated').textContent = `Accept-Patch negotiated: ${contentType}` })
+  }
+  catch (error) {
+    showError(error)
+    show('output-queries', 'status-queries', 'No context', { status: '-' })
+    $('authorizations').textContent = ''
+    $('status-authorizations').textContent = 'no context'
+  }
+  renderPlan()
+}
+
+$('btn-discover').addEventListener('click', discover)
+
+$('btn-wac-allow').addEventListener('click', async () => {
+  const resource = $('f-resource').value
+  const response = await trackedFetch(resource, { method: 'HEAD' })
+  const header = response.headers.get('WAC-Allow')
+  const wacAllow = parseWacAllow(header)
+  show('output-queries', 'status-queries', {
+    'WAC-Allow': header,
+    user: [...wacAllow.user],
+    public: [...wacAllow.public],
+    'allows(wacAllow, mode)': Object.fromEntries(ACCESS_MODES.map(mode => [mode, allows(wacAllow, mode)])),
+  }, { status: 'parseWacAllow' })
+})
+
+$('btn-reset').addEventListener('click', async () => {
+  await trackedFetch('/reset', { method: 'POST' })
+  await discover()
+})
+
+$('btn-apply').addEventListener('click', async () => {
+  if (!plan) return
+  $('btn-apply').disabled = true
+  try {
+    const response = await applyPlan(plan, { fetch: trackedFetch })
+    log(`applyPlan -> ${response.status}`, response.ok)
+    await discover()
+  }
+  catch (error) {
+    showError(error)
+    if (error?.cause instanceof Error) log(String(error.cause), false)
+    await showACLDocument(plan.target)
+  }
+})
+
+renderPlan()
+    </script>
+  </body>
+</html>

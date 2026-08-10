@@ -1,0 +1,40 @@
+name: docs
+
+# When a release is published, regenerate the TypeDoc site and commit it back to
+# main so the committed /docs folder (served by GitHub Pages: Settings -> Pages ->
+# Deploy from a branch -> main -> /docs) always matches the latest release.
+# Uses the PAT so the commit is authored by you, not github-actions[bot], and the
+# release event only reaches this workflow because release-please used that PAT.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: corepack enable
+      - run: yarn install --immutable
+      - run: yarn docs
+      - name: Commit regenerated docs
+        run: |
+          git config user.name "Virginia Balseiro"
+          git config user.email "info@virginiabalseiro.com"
+          git add docs
+          if git diff --cached --quiet; then
+            echo "docs unchanged, nothing to commit"
+            exit 0
+          fi
+          git commit -m "chore: update generated API docs for ${{ github.event.release.tag_name }} [skip ci]"
+          git push origin main
