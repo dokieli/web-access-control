@@ -2,7 +2,7 @@
 
 ## 1.0.0 (2026-08-10)
 
-Making it so! Initial release of `@dokieli/web-access-control` - a Web Access Control (WAC) client library. Source code derived and extended from https://git.dokie.li/ .
+Making it so! Initial release of `@dokieli/web-access-control` - a Web Access Control (WAC) client library. Source code derived and extended from https://git.dokie.li/web-access-control/ .
 
 ### Features
 
