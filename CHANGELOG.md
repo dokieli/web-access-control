@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/dokieli/web-access-control/compare/v1.0.0...v1.1.0) (2026-10-09)
+
+
+### Features
+
+* support acl:origin as an access subject ([56f5953](https://github.com/dokieli/web-access-control/commit/56f5953b7c70aa9e08e1b6fc8cd350ebd89a06f0))
+
 ## 1.0.0 (2026-08-10)
 
 Making it so! Initial release of `@dokieli/web-access-control` - a Web Access Control (WAC) client library. Source code derived and extended from https://git.dokie.li/web-access-control/ .

@@ -1,6 +1,6 @@
 {
   "name": "@dokieli/web-access-control",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Web Access Control (WAC) client library: WAC-Allow header interpretation, effective ACL resource discovery, authorization queries, and pure ACL patch planning. The library allows clients to use their own RDF parsers and HTTP stacks.",
   "type": "module",
   "packageManager": "yarn@4.17.0",
