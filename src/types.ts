@@ -29,7 +29,7 @@ export type GraphParser = (
 
 export type AccessMode = 'Read' | 'Write' | 'Append' | 'Control'
 
-export type SubjectType = 'agent' | 'agentClass' | 'agentGroup'
+export type SubjectType = 'agent' | 'agentClass' | 'agentGroup' | 'origin'
 
 export interface AccessSubject {
   type: SubjectType
@@ -96,7 +96,7 @@ export interface PlanOptions {
 }
 
 export interface GrantOptions extends PlanOptions {
-  /** acl:origin values to set on the new authorization */
+  /** acl:origin values to add to the new authorization, alongside its subject */
   origin?: string[]
   /** conditions to set, replacing existing ones; [] strips, omitted preserves; requires Link rel=acl:condition */
   conditions?: ConditionSpec[]

@@ -31,7 +31,7 @@ import type {
   SubjectType,
 } from './types.js'
 
-const SUBJECT_TYPES: readonly SubjectType[] = ['agent', 'agentClass', 'agentGroup']
+const SUBJECT_TYPES: readonly SubjectType[] = ['agent', 'agentClass', 'agentGroup', 'origin']
 
 /** what an ACL resource advertising a client link condition gets by default */
 const ANY_CLIENT: ConditionSpec = { type: 'ClientCondition', property: 'clientClass', iri: FOAF + 'Agent' }
@@ -58,6 +58,15 @@ function freshIRI(target: string, taken: Set<string>, newId: () => string): stri
   }
   taken.add(iri)
   return iri
+}
+
+function isOrigin(iri: string): boolean {
+  try {
+    return new URL(iri).origin === iri
+  }
+  catch {
+    return false
+  }
 }
 
 function subjectCount(authorization: Authorization): number {
@@ -168,7 +177,7 @@ function freshRuleQuads(input: {
     agent: subject.type === 'agent' ? [subject.iri] : [],
     agentClass: subject.type === 'agentClass' ? [subject.iri] : [],
     agentGroup: subject.type === 'agentGroup' ? [subject.iri] : [],
-    origin,
+    origin: subject.type === 'origin' && !origin.includes(subject.iri) ? [subject.iri, ...origin] : origin,
   })
 
   for (const spec of conditionsForNewRule(ctx, input.conditions)) {
@@ -194,6 +203,7 @@ function cloneRuleQuads(input: {
     agent: [...authorization.agent],
     agentClass: [...authorization.agentClass],
     agentGroup: [...authorization.agentGroup],
+    origin: [...authorization.origin],
   }
   if (without) {
     subjects[without.type] = subjects[without.type].filter(iri => iri !== without.iri)
@@ -204,7 +214,6 @@ function cloneRuleQuads(input: {
     resource: ctx.resource,
     modes: modes ?? authorization.mode,
     ...subjects,
-    origin: authorization.origin,
   })
 
   if (input.conditions) {
@@ -230,6 +239,11 @@ export function planGrant(
 ): PatchPlan {
   if (!modes.length) {
     throw new WACError('planGrant requires at least one mode; use planRevoke to remove access', { iri: ctx.resource })
+  }
+
+  // a value with a path or trailing slash never matches an Origin header
+  if (subject.type === 'origin' && !isOrigin(subject.iri)) {
+    throw new WACError(`${subject.iri} is not an origin, expected scheme://host[:port]`, { iri: ctx.resource })
   }
 
   const newId = options?.newId ?? defaultNewId

@@ -357,6 +357,95 @@ describe('planRevoke on an inherited ACL', () => {
   })
 })
 
+const app = 'https://app.example'
+
+const originFixture = `
+<#app> a acl:Authorization ;
+  acl:accessTo <${doc}> ;
+  acl:origin <${app}> ;
+  acl:mode acl:Read .
+
+<#liliano> a acl:Authorization ;
+  acl:accessTo <${doc}> ;
+  acl:agent <${liliano}> ;
+  acl:origin <https://other.example> ;
+  acl:mode acl:Read .
+`
+
+describe('origin as an access subject', () => {
+  it('inserts a fresh origin-only authorization', () => {
+    const ctx = ownContext(ownFixture)
+    const plan = planGrant(ctx, { type: 'origin', iri: app }, ['Read'], { newId: counterIdFactory() })
+
+    const rule = docACL + '#auth-1'
+    expect(hasQuad(plan.inserts, rule, ACL + 'origin', app)).toBe(true)
+    expect(hasQuad(plan.inserts, rule, ACL + 'mode', ACL + 'Read')).toBe(true)
+    expect(plan.inserts).toHaveLength(4)
+  })
+
+  it('rewrites the modes of an origin-only authorization', () => {
+    const ctx = ownContext(originFixture)
+    const plan = planGrant(ctx, { type: 'origin', iri: app }, ['Read', 'Write'], { newId: counterIdFactory() })
+
+    expect(plan.deletes).toHaveLength(1)
+    expect(hasQuad(plan.deletes, docACL + '#app', ACL + 'mode', ACL + 'Read')).toBe(true)
+    expect(hasQuad(plan.inserts, docACL + '#app', ACL + 'mode', ACL + 'Write')).toBe(true)
+  })
+
+  it('leaves the origin in place when an agent sharing its rule changes mode', () => {
+    const ctx = ownContext(originFixture)
+    const plan = planGrant(ctx, { type: 'agent', iri: liliano }, ['Write'], { newId: counterIdFactory() })
+
+    expect(plan.deletes).toHaveLength(1)
+    expect(hasQuad(plan.deletes, docACL + '#liliano', ACL + 'agent', liliano)).toBe(true)
+    expect(hasQuad(plan.inserts, docACL + '#auth-1', ACL + 'agent', liliano)).toBe(true)
+    expect(hasQuad(plan.inserts, docACL + '#auth-1', ACL + 'origin', 'https://other.example')).toBe(false)
+  })
+
+  it('revokes an origin-only authorization', () => {
+    const ctx = ownContext(originFixture)
+    const plan = planRevoke(ctx, { type: 'origin', iri: app })
+
+    expect(quadsAbout(plan.deletes, docACL + '#app')).toHaveLength(4)
+  })
+
+  it('removes only the origin triple from a rule shared with an agent', () => {
+    const ctx = ownContext(originFixture)
+    const plan = planRevoke(ctx, { type: 'origin', iri: 'https://other.example' })
+
+    expect(plan.deletes).toHaveLength(1)
+    expect(hasQuad(plan.deletes, docACL + '#liliano', ACL + 'origin', 'https://other.example')).toBe(true)
+  })
+
+  it('copies inherited origin-only authorizations and drops a revoked one', () => {
+    const ctx = inheritedContext(`
+<#defaults> a acl:Authorization ;
+  acl:default <${container}> ;
+  acl:agent <${giuseppina}> ;
+  acl:mode acl:Read, acl:Write, acl:Control .
+
+<#app> a acl:Authorization ;
+  acl:default <${container}> ;
+  acl:origin <${app}> ;
+  acl:mode acl:Read .
+`)
+
+    const grant = planGrant(ctx, { type: 'agent', iri: liliano }, ['Read'], { newId: counterIdFactory() })
+    expect(grant.inserts.some(q => q.predicate.value === ACL + 'origin' && q.object.value === app)).toBe(true)
+
+    const revoke = planRevoke(ctx, { type: 'origin', iri: app }, { newId: counterIdFactory() })
+    expect(revoke.inserts.some(q => q.object.value === app)).toBe(false)
+    expect(revoke.inserts.some(q => q.object.value === giuseppina)).toBe(true)
+  })
+
+  it('rejects a value that is not an origin', () => {
+    const ctx = ownContext(ownFixture)
+    expect(() => planGrant(ctx, { type: 'origin', iri: app + '/' }, ['Read'])).toThrow(WACError)
+    expect(() => planGrant(ctx, { type: 'origin', iri: app + '/path' }, ['Read'])).toThrow(WACError)
+    expect(() => planGrant(ctx, { type: 'origin', iri: 'app.example' }, ['Read'])).toThrow(WACError)
+  })
+})
+
 describe('planPublicRead', () => {
   it('grants public read', () => {
     const ctx = ownContext(`

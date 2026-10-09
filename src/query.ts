@@ -18,7 +18,7 @@ limitations under the License.
 import { Public } from './terms.js'
 import type { AccessMode, AccessSubject, ACLContext, Authorization, SubjectType } from './types.js'
 
-const SUBJECT_TYPES: readonly SubjectType[] = ['agent', 'agentClass', 'agentGroup']
+const SUBJECT_TYPES: readonly SubjectType[] = ['agent', 'agentClass', 'agentGroup', 'origin']
 
 function matches(authorization: Authorization, subject: AccessSubject | string): boolean {
   if (typeof subject === 'string') {

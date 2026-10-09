@@ -120,6 +120,36 @@ describe('isPublic and hasControl', () => {
   })
 })
 
+describe('origin subjects', () => {
+  const app = 'https://app.example'
+  const originFixture = `
+@prefix acl: <http://www.w3.org/ns/auth/acl#> .
+
+<#owner> a acl:Authorization ;
+  acl:accessTo <${doc}> ;
+  acl:agent <${giuseppina}> ;
+  acl:mode acl:Read, acl:Write, acl:Control .
+
+<#app> a acl:Authorization ;
+  acl:accessTo <${doc}> ;
+  acl:origin <${app}> ;
+  acl:mode acl:Read .
+`
+
+  it('reports modes for an origin', () => {
+    const ctx = ownContext(originFixture)
+    expect([...modesFor(ctx, { type: 'origin', iri: app })]).toEqual(['Read'])
+    expect([...modesFor(ctx, app)]).toEqual(['Read'])
+    expect(modesFor(ctx, { type: 'agent', iri: app }).size).toBe(0)
+  })
+
+  it('lists origins among subjects but not among agents', () => {
+    const ctx = ownContext(originFixture)
+    expect(subjectsWithMode(ctx, 'Read')).toContainEqual({ type: 'origin', iri: app })
+    expect(agentsWithMode(ctx, 'Read')).toEqual([giuseppina])
+  })
+})
+
 const conditionalFixture = `
 @prefix acl: <http://www.w3.org/ns/auth/acl#> .
 @prefix foaf: <http://xmlns.com/foaf/0.1/> .
